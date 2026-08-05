@@ -19,14 +19,20 @@ workflows:
   # ANDROID — начни с него: он проще, быстрее и не требует
   # сертификатов Apple. Хороший способ убедиться, что сборка вообще
   # работает, до возни с подписью iOS.
+  #
+  # instance_type здесь не указан специально: linux_x2 требует
+  # платного тарифа, а без указания Codemagic сам берёт инстанс,
+  # доступный на бесплатном плане.
   # ---------------------------------------------------------------
   android-debug:
     name: Android (отладочная сборка)
-    instance_type: linux_x2
     max_build_duration: 45
     environment:
-      node: 20
-      java: 17
+      # Версии подобраны по требованиям свежего Capacitor:
+      #   Node 20 → "The Capacitor CLI requires NodeJS >=22.0.0"
+      #   Java 17 → "invalid source release: 21" при компиляции
+      node: 22
+      java: 21
     scripts:
       - name: Установить зависимости
         script: |
@@ -57,7 +63,6 @@ workflows:
       email:
         recipients:
           - hardworkpaysoff0@protonmail.com
-          # ← заменить на свою почту
         notify:
           success: true
           failure: true
@@ -65,6 +70,11 @@ workflows:
   # ---------------------------------------------------------------
   # iOS — требует аккаунт Apple Developer ($99/год) и настроенную
   # подпись в Codemagic. Запускай после того, как Android собрался.
+  #
+  # mac_mini_m2 — минимальный доступный Mac-инстанс, на бесплатном
+  # тарифе даётся ограниченное количество минут сборки под macOS.
+  # Если и он окажется недоступен — проверь в интерфейсе Codemagic
+  # раздел Billing → там видно, какие инстансы включены в план.
   # ---------------------------------------------------------------
   ios-release:
     name: iOS (сборка для TestFlight)
@@ -75,7 +85,7 @@ workflows:
         BUNDLE_ID: "com.example.sortandbuild"   # ← заменить на свой
         XCODE_WORKSPACE: "proj/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-      node: 20
+      node: 22
       xcode: latest
       cocoapods: default
     scripts:
@@ -122,7 +132,6 @@ workflows:
       email:
         recipients:
           - hardworkpaysoff0@protonmail.com
-          # ← заменить на свою почту
         notify:
           success: true
           failure: true
