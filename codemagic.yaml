@@ -28,7 +28,9 @@ workflows:
     name: Android (отладочная сборка)
     max_build_duration: 45
     environment:
-      node: 20
+      # Capacitor CLI требует Node 22 и новее — на Node 20 сборка
+      # падает с "The Capacitor CLI requires NodeJS >=22.0.0"
+      node: 22
       java: 17
     scripts:
       - name: Установить зависимости
@@ -82,7 +84,7 @@ workflows:
         BUNDLE_ID: "com.example.sortandbuild"   # ← заменить на свой
         XCODE_WORKSPACE: "proj/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-      node: 20
+      node: 22
       xcode: latest
       cocoapods: default
     scripts:
