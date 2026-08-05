@@ -28,10 +28,11 @@ workflows:
     name: Android (отладочная сборка)
     max_build_duration: 45
     environment:
-      # Capacitor CLI требует Node 22 и новее — на Node 20 сборка
-      # падает с "The Capacitor CLI requires NodeJS >=22.0.0"
+      # Версии подобраны по требованиям свежего Capacitor:
+      #   Node 20 → "The Capacitor CLI requires NodeJS >=22.0.0"
+      #   Java 17 → "invalid source release: 21" при компиляции
       node: 22
-      java: 17
+      java: 21
     scripts:
       - name: Установить зависимости
         script: |
