@@ -50,6 +50,10 @@ export function Board3D({
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.touchAction = "none";
+    /* Явно просим прозрачный фон. Без этого на части устройств
+       холст заливается чёрным вместо того, чтобы показывать
+       подложку контейнера — получался «получёрный экран». */
+    renderer.setClearColor(0x000000, 0);
 
     // сумма источников под единицей, иначе цвета выцветают
     scene.add(new THREE.HemisphereLight(0xffffff, 0xd8cdbb, 0.34));
@@ -153,10 +157,22 @@ export function Board3D({
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
 
+    /* Пересчёт размера сцены.
+
+       Первый вызов часто приходит раньше, чем браузер посчитает
+       раскладку: ширина и высота нулевые, функция выходит — и
+       холст остаётся с размером по умолчанию. Отсюда чёрная
+       область вместо поля. Поэтому при нулевом размере пробуем
+       ещё раз на следующем кадре. */
+    let retry = 0;
     const resize = () => {
       const w = mount.clientWidth;
       const h = mount.clientHeight;
-      if (!w || !h) return;
+      if (!w || !h) {
+        if (retry++ < 30) requestAnimationFrame(resize);
+        return;
+      }
+      retry = 0;
       const need = st.frustum || { w: 8, h: 6 };
       const aspect = w / h;
       // вписываем поле целиком: берём больший из двух масштабов
@@ -369,7 +385,13 @@ export function Board3D({
     const D = 20;
     st.camera.position.set(0, D * 0.38, D * 0.92);
     st.camera.lookAt(0, 0, 0);
-    if (st.resize) st.resize();
+    /* Пересчитываем кадр под новое поле. Второй вызов на следующем
+       кадре — страховка: при первом заходе на уровень раскладка
+       контейнера может быть ещё не готова, и размер выйдет нулевым. */
+    if (st.resize) {
+      st.resize();
+      requestAnimationFrame(() => st.resize && st.resize());
+    }
 
     st.SP = SP;
   }, [board.length, worldKey]);
