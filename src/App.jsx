@@ -906,11 +906,11 @@ export default function SortAndBuild3D() {
             nextLifeAt={nextLifeAt} now={now}
           />
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "7px 13px",
+                background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
@@ -999,11 +999,11 @@ export default function SortAndBuild3D() {
       {/* ---------- ВЫБОР МИРА ---------- */}
       {screen === "worlds" && (
         <div style={{ width: "100%", maxWidth: 460, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "7px 13px",
+                background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
@@ -1079,11 +1079,11 @@ export default function SortAndBuild3D() {
       {/* ---------- ГАЛЕРЕЯ СОБРАННЫХ МИРОВ ---------- */}
       {screen === "gallery" && (
         <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "7px 13px",
+                background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
@@ -1269,12 +1269,25 @@ export default function SortAndBuild3D() {
       {/* ---------- ИГРА ---------- */}
       {screen === "game" && (
         <div style={{ width: "100%", maxWidth: 460, padding: "12px 12px 20px", display: "flex", flexDirection: "column", gap: 9, boxSizing: "border-box"}}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Шапка отодвинута от верхнего края.
+
+             Отступ safe-area даёт только высоту безопасной зоны, но не
+             говорит, где вырез по горизонтали: на Pixel он по центру,
+             на разных iPhone — по центру или слева. Угадывать место
+             ненадёжно, поэтому просто уводим всю шапку ниже выреза. */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginTop: 10, minHeight: 40,
+          }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "6px 12px",
+                background: UI.panel, border: "none", borderRadius: 11,
+                /* область нажатия не меньше 44 пикселей — иначе
+                   по кнопке трудно попасть пальцем */
+                padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                position: "relative", zIndex: 5,
               }}
             >
               ← {t.menu}
