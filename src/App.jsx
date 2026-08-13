@@ -706,6 +706,9 @@ export default function SortAndBuild3D() {
           minHeight: "100vh", background: UI.bg, color: UI.ink,
           display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center", gap: 14,
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          boxSizing: "border-box",
           fontFamily: "Nunito, system-ui, sans-serif",
         }}
       >
@@ -745,6 +748,15 @@ export default function SortAndBuild3D() {
         minHeight: "100vh", background: UI.bg, color: UI.ink,
         fontFamily: "Nunito, system-ui, sans-serif",
         display: "flex", justifyContent: "center",
+        /* Отступы под вырез камеры, часы и системные кнопки.
+           Без них шапка уезжает под статус-бар: кнопка «Меню»
+           либо не видна, либо видна, но не нажимается — по ней
+           попадает системная панель, а не игра. */
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        paddingLeft: "env(safe-area-inset-left, 0px)",
+        paddingRight: "env(safe-area-inset-right, 0px)",
+        boxSizing: "border-box",
       }}
     >
       <style>{`
@@ -799,7 +811,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- МЕНЮ ---------- */}
       {screen === "menu" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "18px 18px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ width: "100%", maxWidth: 460, padding: "18px 18px 24px", display: "flex", flexDirection: "column", gap: 14, boxSizing: "border-box"}}>
           <ResourceBar
             t={t} lives={lives} coins={coins} unlimited={unlimited}
             nextLifeAt={nextLifeAt} now={now}
@@ -888,7 +900,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- МАГАЗИН ---------- */}
       {screen === "shop" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
           <ResourceBar
             t={t} lives={lives} coins={coins} unlimited={unlimited}
             nextLifeAt={nextLifeAt} now={now}
@@ -986,7 +998,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ВЫБОР МИРА ---------- */}
       {screen === "worlds" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ width: "100%", maxWidth: 460, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
               onClick={() => setScreen("menu")}
@@ -1049,8 +1061,7 @@ export default function SortAndBuild3D() {
                         background: UI.accent, border: "none", color: "#fff",
                         borderRadius: 12, padding: "10px 12px",
                         fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13.5,
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      }}
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxSizing: "border-box"}}
                     >
                       🔓 {t.buyWorld} — {price}
                     </button>
@@ -1067,7 +1078,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ГАЛЕРЕЯ СОБРАННЫХ МИРОВ ---------- */}
       {screen === "gallery" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
               onClick={() => setScreen("menu")}
@@ -1175,7 +1186,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ПРОСМОТР СОБРАННОГО МИРА ---------- */}
       {screen === "view" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "14px 12px 22px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ width: "100%", maxWidth: 460, padding: "14px 12px 22px", display: "flex", flexDirection: "column", gap: 10, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <button
               onClick={() => setScreen("gallery")}
@@ -1257,7 +1268,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ИГРА ---------- */}
       {screen === "game" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "12px 12px 20px", display: "flex", flexDirection: "column", gap: 9 }}>
+        <div style={{ width: "100%", maxWidth: 460, padding: "12px 12px 20px", display: "flex", flexDirection: "column", gap: 9, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <button
               onClick={() => setScreen("menu")}
@@ -1498,8 +1509,7 @@ export default function SortAndBuild3D() {
               width: "100%", display: "flex", alignItems: "center", gap: 10,
               background: "transparent", border: "none", padding: "4px 0 12px",
               cursor: haptic.supported ? "pointer" : "not-allowed",
-              opacity: haptic.supported ? 1 : 0.5, textAlign: "left",
-            }}
+              opacity: haptic.supported ? 1 : 0.5, textAlign: "left", boxSizing: "border-box"}}
           >
             <span style={{ fontSize: 15 }}>📳</span>
             <span style={{ flex: 1 }}>
@@ -1893,8 +1903,7 @@ function ShopRow({ icon, title, sub, price, badge, money, disabled, onClick }) {
         borderRadius: 16, padding: "12px 14px",
         cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
         display: "flex", alignItems: "center", gap: 12,
-        boxShadow: disabled ? "none" : "0 2px 10px rgba(47,58,44,0.06)",
-      }}
+        boxShadow: disabled ? "none" : "0 2px 10px rgba(47,58,44,0.06)", boxSizing: "border-box"}}
     >
       <span style={{ fontSize: 26 }}>{icon}</span>
       <span style={{ flex: 1 }}>
@@ -1941,8 +1950,7 @@ function Overlay({ children }) {
         style={{
           background: UI.panel, borderRadius: 22, padding: "26px 22px",
           width: "100%", maxWidth: 330, textAlign: "center",
-          animation: "sb-pop .3s ease both", maxHeight: "88vh", overflowY: "auto",
-        }}
+          animation: "sb-pop .3s ease both", maxHeight: "88vh", overflowY: "auto", boxSizing: "border-box"}}
       >
         {children}
       </div>
@@ -2004,8 +2012,7 @@ function TextBtn({ onClick, children }) {
       onClick={onClick}
       style={{
         background: "none", border: "none", color: UI.deep, opacity: 0.6,
-        fontSize: 12, cursor: "pointer", padding: 8, marginTop: 4, width: "100%",
-      }}
+        fontSize: 12, cursor: "pointer", padding: 8, marginTop: 4, width: "100%", boxSizing: "border-box"}}
     >
       {children}
     </button>
@@ -2019,8 +2026,7 @@ export function Btn({ onClick, children }) {
       style={{
         background: UI.accent, color: "#fff", border: "none", borderRadius: 13,
         padding: "13px 16px", fontFamily: "Fredoka, sans-serif", fontWeight: 600,
-        fontSize: 15, cursor: "pointer", width: "100%",
-      }}
+        fontSize: 15, cursor: "pointer", width: "100%", boxSizing: "border-box"}}
     >
       {children}
     </button>
