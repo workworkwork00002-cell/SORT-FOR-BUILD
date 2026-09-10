@@ -117,6 +117,10 @@ export default function SortAndBuild3D() {
   const [shake, setShake] = useState(false);
   const [modal, setModal] = useState(null);
   const [adLoading, setAdLoading] = useState(false);
+  /* Выбор способа оплаты буста: {cost, reward, icon, label} либо null.
+     Держим здесь, а не в общем modal, чтобы не мешаться с игровыми
+     окнами вроде «уровень пройден». */
+  const [boostChoice, setBoostChoice] = useState(null);
   const [toast, setToast] = useState(null);
   const [hint, setHint] = useState(null);
 
@@ -510,14 +514,30 @@ export default function SortAndBuild3D() {
     else setToast(t.adUnavailable);
   };
 
-  const payOrAd = (cost, reward) => {
-    if (coins >= cost) {
-      setCoins((c) => c - cost);
-      reward();
-    } else {
-      // не хватает монет — предлагаем получить буст за рекламу
-      showAd(reward);
-    }
+  /* Раньше ролик предлагался только при нехватке монет, и игрок с
+     полным кошельком не видел рекламы никогда — а на площадке, где
+     основной доход рекламный, это заметная потеря.
+
+     Теперь выбор явный. Если монет не хватает, спрашивать не о чем:
+     сразу ролик, как и было. */
+  const payOrAd = (cost, reward, icon, label) => {
+    if (coins >= cost) setBoostChoice({ cost, reward, icon, label });
+    else showAd(reward);
+  };
+
+  const payWithCoins = () => {
+    if (!boostChoice) return;
+    const { cost, reward } = boostChoice;
+    setBoostChoice(null);
+    setCoins((c) => c - cost);
+    reward();
+  };
+
+  const payWithAd = () => {
+    if (!boostChoice) return;
+    const { reward } = boostChoice;
+    setBoostChoice(null);
+    showAd(reward);
   };
 
   const boostUndo = () => {
@@ -544,7 +564,7 @@ export default function SortAndBuild3D() {
       });
       setHistory((h) => h.slice(0, -1));
         setToast(t.boostUndo);
-    });
+    }, "↩️", t.boostUndo);
   };
 
   // лишняя полка — главный инструмент, когда мест не осталось
@@ -565,7 +585,7 @@ export default function SortAndBuild3D() {
       });
       setExtraShelves((n) => n + 1);
       setToast(t.boostShelf);
-    });
+    }, "🗄️", t.boostShelf);
   };
 
   // подсказка: решатель ищет верный ход
@@ -580,7 +600,7 @@ export default function SortAndBuild3D() {
       setBlockedAt(board[mv.a].front[mv.i] ? board[mv.a].front[mv.i].id : null);
       setTimeout(() => setBlockedAt(null), 900);
       setHint(t.hintShown);
-    });
+    }, "💡", t.boostHint);
   };
 
   /* ---------- покупки ---------- */
@@ -796,6 +816,32 @@ export default function SortAndBuild3D() {
         }}
       >
         <style>{`
+        /* ДЕСКТОП.
+
+           Игра свёрстана колонкой в 460px под телефон, и это
+           правильно: механика вертикальная, полки идут стопкой.
+           Но на широком экране такая колонка висит посреди пустоты
+           и читается как недогрузившаяся страница.
+
+           Поэтому на широких экранах превращаем колонку в карточку
+           на мягком фоне. Вёрстку внутри не трогаем вообще — только
+           обрамление. Порог 720px выбран так, чтобы планшеты в
+           портрете остались на мобильном варианте. */
+        @media (min-width: 720px) {
+          .sb-desktop-bg {
+            background:
+              radial-gradient(1200px 600px at 50% -10%, #f4f8f0 0%, transparent 60%),
+              linear-gradient(160deg, #dfe9d6 0%, #e9f0e2 45%, #e3ebdb 100%);
+          }
+          .sb-col {
+            box-shadow: 0 0 0 1px rgba(47, 58, 44, 0.06),
+                        0 24px 60px rgba(47, 58, 44, 0.14);
+            border-radius: 24px;
+            background: ${UI.bg};
+            /* карточка не должна прилипать к краям окна */
+            margin: 18px 0;
+          }
+        }
           @keyframes sb-load{0%,100%{transform:translateY(0);opacity:.55}
             50%{transform:translateY(-9px);opacity:1}}
         `}</style>
@@ -827,6 +873,7 @@ export default function SortAndBuild3D() {
   return (
     <div
       dir={rtl ? "rtl" : "ltr"}
+      className="sb-desktop-bg"
       style={{
         minHeight: "100vh", background: UI.bg, color: UI.ink,
         fontFamily: "Nunito, system-ui, sans-serif",
@@ -843,7 +890,6 @@ export default function SortAndBuild3D() {
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;800&display=swap');
         @keyframes sb-pop{0%{opacity:0;transform:scale(.6)}70%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
         @keyframes sb-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
         @keyframes sb-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
@@ -894,7 +940,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- МЕНЮ ---------- */}
       {screen === "menu" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "18px 18px 24px", display: "flex", flexDirection: "column", gap: 14, boxSizing: "border-box"}}>
+        <div className="sb-col" style={{ width: "100%", maxWidth: 460, padding: "18px 18px 24px", display: "flex", flexDirection: "column", gap: 14, boxSizing: "border-box"}}>
           <ResourceBar
             t={t} lives={lives} coins={coins} unlimited={unlimited}
             nextLifeAt={nextLifeAt} now={now}
@@ -983,7 +1029,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- МАГАЗИН ---------- */}
       {screen === "shop" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
+        <div className="sb-col" style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
           <ResourceBar
             t={t} lives={lives} coins={coins} unlimited={unlimited}
             nextLifeAt={nextLifeAt} now={now}
@@ -1081,7 +1127,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ВЫБОР МИРА ---------- */}
       {screen === "worlds" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
+        <div className="sb-col" style={{ width: "100%", maxWidth: 460, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
@@ -1161,7 +1207,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ГАЛЕРЕЯ СОБРАННЫХ МИРОВ ---------- */}
       {screen === "gallery" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
+        <div className="sb-col" style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
@@ -1269,7 +1315,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ПРОСМОТР СОБРАННОГО МИРА ---------- */}
       {screen === "view" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "14px 12px 22px", display: "flex", flexDirection: "column", gap: 10, boxSizing: "border-box"}}>
+        <div className="sb-col" style={{ width: "100%", maxWidth: 460, padding: "14px 12px 22px", display: "flex", flexDirection: "column", gap: 10, boxSizing: "border-box"}}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <button
               onClick={() => setScreen("gallery")}
@@ -1351,7 +1397,7 @@ export default function SortAndBuild3D() {
 
       {/* ---------- ИГРА ---------- */}
       {screen === "game" && (
-        <div style={{ width: "100%", maxWidth: 460, padding: "12px 12px 20px", display: "flex", flexDirection: "column", gap: 9, boxSizing: "border-box"}}>
+        <div className="sb-col" style={{ width: "100%", maxWidth: 460, padding: "12px 12px 20px", display: "flex", flexDirection: "column", gap: 9, boxSizing: "border-box"}}>
           {/* Шапка отодвинута от верхнего края.
 
              Отступ safe-area даёт только высоту безопасной зоны, но не
@@ -1715,6 +1761,32 @@ export default function SortAndBuild3D() {
         </div>
       )}
 
+      {/* Выбор: заплатить монетами или посмотреть ролик.
+          Две крупные кнопки вместо тесных зон внутри одной —
+          аудитория площадки заметно старше среднего, и мелкие
+          цели промахиваются. */}
+      {boostChoice && !adLoading && (
+        <Overlay>
+          <div style={{ fontSize: 40 }}>{boostChoice.icon}</div>
+          <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 19, margin: "6px 0 16px", color: UI.deep }}>
+            {boostChoice.label}
+          </div>
+          <Btn onClick={payWithCoins}>{boostChoice.cost} 🪙</Btn>
+          <div style={{ height: 8 }} />
+          <button
+            onClick={payWithAd}
+            style={{
+              background: "transparent", border: `1.5px solid ${UI.accent}`, color: UI.accent,
+              borderRadius: 13, padding: "11px 16px", width: "100%", cursor: "pointer",
+              fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 14,
+            }}
+          >
+            ▶ {t.watchAd}
+          </button>
+          <TextBtn onClick={() => setBoostChoice(null)}>{t.close}</TextBtn>
+        </Overlay>
+      )}
+
       {adLoading && (
         <div
           style={{
@@ -1909,7 +1981,8 @@ function BoostBtn({ onClick, icon, label, disabled, cost, coins, adWord }) {
         {label}
       </span>
       <span style={{ fontFamily: "Fredoka, sans-serif", fontSize: 10.5, fontWeight: 700, color: affordable ? UI.accent : UI.deep, opacity: affordable ? 1 : 0.65 }}>
-        {affordable ? `${cost} 🪙` : `▶ ${adWord}`}
+        {/* «▶» намекает, что у платного варианта есть бесплатная альтернатива */}
+        {affordable ? `${cost} 🪙 · ▶` : `▶ ${adWord}`}
       </span>
     </button>
   );
