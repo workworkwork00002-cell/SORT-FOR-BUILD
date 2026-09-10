@@ -1,0 +1,532 @@
+diff --git a/.gitignore b/.gitignore
+index 3d6f70f..2635474 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -11,3 +11,5 @@ android/
+ .env
+ *.p12
+ *.mobileprovision
++dist-yandex
++sort-and-build-yandex.zip
+diff --git a/index.html b/index.html
+index 20295df..9c20c8a 100644
+--- a/index.html
++++ b/index.html
+@@ -26,6 +26,7 @@
+   </head>
+   <body>
+     <div id="root"></div>
++    <!--YANDEX_SDK-->
+     <script type="module" src="/src/main.jsx"></script>
+   </body>
+ </html>
+diff --git a/package.json b/package.json
+index 31b59eb..c86453c 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,9 @@
+     "dev": "vite",
+     "build": "vite build",
+     "preview": "vite preview",
+-    "sync": "npm run build && npx cap sync"
++    "sync": "npm run build && npx cap sync",
++    "build:yandex": "vite build --mode yandex",
++    "pack:yandex": "npm run build:yandex && cd dist-yandex && zip -r ../sort-and-build-yandex.zip ."
+   },
+   "dependencies": {
+     "@capacitor/android": "^7.0.0",
+@@ -22,4 +24,4 @@
+     "@vitejs/plugin-react": "^4.3.4",
+     "vite": "^5.4.11"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/App.jsx b/src/App.jsx
+index ca1e759..a57721d 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -7,7 +7,8 @@ import { UI } from "./core/geometry";
+ import { createHaptics } from "./core/haptics";
+ import { LANGS, detectLang, isRTL, makeT } from "./core/i18n";
+ import { levelConfig, worldTiers } from "./core/levels";
+-import { catchUpLives, clearSave, readSave, writeSave } from "./core/save";
++import { platformLang, signalReady } from "./core/platform";
++import { catchUpLives, clearSave, flushSave, readSave, writeSave } from "./core/save";
+ import { SHELF_SLOTS, acceptsItem, frontOf, generateShelves, hasShelfMoves, openSlots, shelfHint, shelfMatch, shelvesSolved, sizeOf, slotOpen, solveShelves } from "./core/shelves";
+ import { MechanicCard, TUTORIAL_STEPS, TutorialHint, firstNewMechanic, tutorialTarget } from "./ui/Tutorial";
+ import { Plot } from "./world/Plot";
+@@ -171,6 +172,11 @@ export default function SortAndBuild3D() {
+         setTutDone(save.tutDone);
+         setSeenMechanics(save.seenMechanics);
+         if (save.lang) setLang(save.lang);
++        else {
++          // игрок ещё не выбирал язык — берём язык площадки
++          const pl = platformLang();
++          if (pl && LANGS.some((l) => l.code === pl)) setLang(pl);
++        }
+ 
+         // жизни, накопившиеся пока игра была закрыта
+         const caught = catchUpLives(save, Date.now());
+@@ -184,6 +190,8 @@ export default function SortAndBuild3D() {
+         setBoard(generateShelves(c, st.items));
+       }
+       setLoaded(true);
++      // убираем лоадер платформы: игра готова к взаимодействию
++      signalReady();
+     })();
+     return () => { alive = false; };
+   }, []);
+@@ -686,6 +694,17 @@ export default function SortAndBuild3D() {
+     if (freeNow <= 2 && !solveShelves(board, 12000)) setModal("stuck");
+   }, [board, modal, screen, unlocked, stages.length, world, gIdx, audio, haptic]);
+ 
++  /* Переломные точки прогресса сбрасываем в облако немедленно.
++     Обычная запись отложена на секунды, а игрок вполне может
++     закрыть вкладку сразу после победного экрана — и потерять
++     как раз тот уровень, ради которого играл.
++
++     Эффект объявлен ниже эффекта записи, поэтому к моменту
++     вызова flushSave актуальное состояние уже подготовлено. */
++  useEffect(() => {
++    if (modal === "win" || modal === "worldDone" || modal === "allDone") flushSave();
++  }, [modal]);
++
+   const nextLevel = () => {
+     const lvl = level + 1;
+     setLevel(lvl);
+diff --git a/src/core/platform.js b/src/core/platform.js
+new file mode 100644
+index 0000000..40dccde
+--- /dev/null
++++ b/src/core/platform.js
+@@ -0,0 +1,172 @@
++/* ============================================================
++   ПЛАТФОРМА (Яндекс Игры)
++
++   Тонкая обёртка над Yandex Games SDK. Смысл файла в том, чтобы
++   остальная игра ничего не знала о платформе: она просто просит
++   «сохрани», «покажи рекламу», а здесь решается, есть ли SDK.
++
++   Игра обязана работать и без платформы — в dev-режиме, в APK,
++   при заблокированном скрипте SDK. Поэтому каждый метод имеет
++   запасной вариант, и ни один сбой SDK не должен мешать играть.
++   ============================================================ */
++
++let ysdk = null;      // объект SDK, если платформа доступна
++let player = null;    // объект игрока, если удалось инициализировать
++let initPromise = null;
++
++/* Игра запущена внутри Яндекс Игр? */
++export const onYandex = () => ysdk !== null;
++
++/* Облачные сохранения доступны только при живом объекте player. */
++export const hasCloud = () => player !== null;
++
++/* --- инициализация ---
++   Вызывается один раз на старте. Никогда не бросает исключение:
++   при любой ошибке возвращаемся к локальному режиму. */
++export function initPlatform() {
++  if (initPromise) return initPromise;
++
++  initPromise = (async () => {
++    if (typeof window === "undefined" || !window.YaGames) return false;
++
++    try {
++      ysdk = await window.YaGames.init();
++    } catch (e) {
++      ysdk = null;
++      return false;
++    }
++
++    // Player инициализируем отдельно: он может не подняться
++    // (игрок запретил доступ к данным, сетевой сбой), и это не
++    // повод отказываться от рекламы и остального SDK.
++    try {
++      player = await ysdk.getPlayer({ scopes: false });
++    } catch (e) {
++      player = null;
++    }
++
++    return true;
++  })();
++
++  return initPromise;
++}
++
++/* Сообщаем платформе, что загрузка кончилась и игра готова.
++   До этого вызова Яндекс держит свой лоадер поверх игры. */
++export function signalReady() {
++  try {
++    ysdk?.features?.LoadingAPI?.ready();
++  } catch (e) {
++    /* не критично */
++  }
++}
++
++/* Отметка о начале игрового процесса — платформа использует её,
++   чтобы не показывать рекламу поверх активной партии. */
++export function gameplayStart() {
++  try {
++    ysdk?.features?.GameplayAPI?.start();
++  } catch (e) {}
++}
++
++export function gameplayStop() {
++  try {
++    ysdk?.features?.GameplayAPI?.stop();
++  } catch (e) {}
++}
++
++/* --- хранилище ---
++   Наружу отдаём два метода с одинаковым поведением в обоих
++   режимах: читаем откуда получится, пишем куда получится. */
++
++export async function cloudGet(key) {
++  if (!player) return null;
++  try {
++    const data = await player.getData([key]);
++    return data && typeof data[key] === "string" ? data[key] : null;
++  } catch (e) {
++    return null;
++  }
++}
++
++/* flush=true отправляет данные немедленно (перед уходом со
++   страницы), иначе запись становится в очередь SDK. */
++export async function cloudSet(key, value, flush = false) {
++  if (!player) return false;
++  try {
++    await player.setData({ [key]: value }, flush);
++    return true;
++  } catch (e) {
++    return false;
++  }
++}
++
++/* --- реклама ---
++   Обе функции всегда резолвятся. Вызывающий код не должен
++   зависеть от того, показалась реклама или нет. */
++
++/* Полноэкранная вставка. Резолвится после закрытия. */
++export function showFullscreenAd() {
++  return new Promise((resolve) => {
++    if (!ysdk?.adv?.showFullscreenAdv) {
++      resolve(false);
++      return;
++    }
++    let done = false;
++    const finish = (shown) => {
++      if (done) return;
++      done = true;
++      resolve(shown);
++    };
++    try {
++      ysdk.adv.showFullscreenAdv({
++        callbacks: {
++          onClose: (wasShown) => finish(!!wasShown),
++          onError: () => finish(false),
++        },
++      });
++    } catch (e) {
++      finish(false);
++    }
++  });
++}
++
++/* Реклама за награду. Резолвится в true, только если ролик
++   досмотрен до конца — награду выдаём строго по этому флагу. */
++export function showRewardedAd() {
++  return new Promise((resolve) => {
++    if (!ysdk?.adv?.showRewardedVideo) {
++      resolve(false);
++      return;
++    }
++    let rewarded = false;
++    let done = false;
++    const finish = () => {
++      if (done) return;
++      done = true;
++      resolve(rewarded);
++    };
++    try {
++      ysdk.adv.showRewardedVideo({
++        callbacks: {
++          onRewarded: () => { rewarded = true; },
++          onClose: finish,
++          onError: finish,
++        },
++      });
++    } catch (e) {
++      finish();
++    }
++  });
++}
++
++/* --- язык площадки ---
++   Яндекс сообщает язык интерфейса пользователя. Используем его
++   как стартовое значение, если игрок ещё не выбирал язык сам. */
++export function platformLang() {
++  try {
++    return ysdk?.environment?.i18n?.lang || null;
++  } catch (e) {
++    return null;
++  }
++}
+diff --git a/src/core/save.js b/src/core/save.js
+index 9f7941e..4879832 100644
+--- a/src/core/save.js
++++ b/src/core/save.js
+@@ -1,22 +1,33 @@
+ import { LIFE_REGEN_MS, MAX_LIVES, REGEN_CAP, START_COINS } from "./economy";
+ import { I18N } from "./i18n";
+ import { WORLDS } from "../world/worlds";
++import { cloudGet, cloudSet, hasCloud } from "./platform";
+ 
+ 
+ /* ============================================================
+    СОХРАНЕНИЕ ПРОГРЕССА
+ 
+-   Игра живёт в браузере, поэтому прогресс пишем в хранилище
+-   артефакта. Три вещи здесь важнее всего:
++   Два уровня хранения, и это не дублирование ради надёжности,
++   а разные задачи:
++
++   • localStorage — быстрый, синхронный, всегда под рукой.
++     Пишем туда часто: он переживает перезагрузку вкладки и
++     работает даже когда платформы нет вообще.
++
++   • Облако Яндекса — переносит прогресс между устройствами.
++     Дёргать его часто нельзя: setData ограничен сотней вызовов
++     за пять минут, а игра меняет монеты и жизни десятками раз
++     за партию. Поэтому в облако уходит не каждое изменение, а
++     срез состояния раз в CLOUD_INTERVAL и обязательно в момент
++     ухода со страницы.
++
++   Остальное, что здесь важно:
+ 
+    • Данные могут прийти испорченными — от старой версии игры,
+      от ручной правки, от сбоя записи. Поэтому каждое поле
+      проверяется по отдельности, и одно битое значение не рушит
+      всё сохранение: оно просто заменяется значением по умолчанию.
+ 
+-   • Запись идёт с задержкой. Иначе каждый ход дёргал бы диск:
+-     за партию это сотни обращений на ровном месте.
+-
+    • Жизни восстанавливаются за время отсутствия. Игрок закрыл
+      игру с одной жизнью, вернулся через час — должен получить
+      свои жизни, а не увидеть ту же единицу.
+@@ -112,7 +123,42 @@ export function catchUpLives(save, now) {
+ /* --- запись --- */
+ 
+ let saveTimer = null;
+-let lastPayload = "";
++let cloudTimer = null;
++let lastPayload = "";      // что последний раз ушло в localStorage
++let lastCloudPayload = ""; // что последний раз ушло в облако
++let lastCloudAt = 0;
++
++/* Минимальный интервал между записями в облако. Лимит платформы —
++   100 запросов за 5 минут; двадцать секунд оставляют огромный
++   запас даже при нескольких вкладках. */
++const CLOUD_INTERVAL = 20000;
++
++function writeLocal(json) {
++  try {
++    window.localStorage.setItem(SAVE_KEY, json);
++  } catch (e) {
++    // Приватный режим, переполненная квота, отключённое хранилище.
++    // Партия от этого не должна прерываться.
++  }
++}
++
++async function writeCloud(json, flush) {
++  if (!hasCloud()) return;
++  if (json === lastCloudPayload) return;
++  const ok = await cloudSet(SAVE_KEY, json, flush);
++  if (ok) {
++    lastCloudPayload = json;
++    lastCloudAt = Date.now();
++  }
++}
++
++/* Планируем отправку в облако с соблюдением интервала. */
++function scheduleCloud(json) {
++  if (!hasCloud()) return;
++  clearTimeout(cloudTimer);
++  const wait = Math.max(0, CLOUD_INTERVAL - (Date.now() - lastCloudAt));
++  cloudTimer = setTimeout(() => writeCloud(json, false), wait);
++}
+ 
+ export function writeSave(data) {
+   const json = JSON.stringify(data);
+@@ -121,38 +167,82 @@ export function writeSave(data) {
+   lastPayload = json;
+ 
+   clearTimeout(saveTimer);
+-  saveTimer = setTimeout(async () => {
+-    try {
+-      if (typeof window !== "undefined" && window.storage) {
+-        await window.storage.set(SAVE_KEY, json);
+-      }
+-    } catch (e) {
+-      // Сохранение не критично для текущей партии: если хранилище
+-      // недоступно, игра продолжается, просто без записи прогресса.
+-    }
++  saveTimer = setTimeout(() => {
++    writeLocal(json);
++    scheduleCloud(json);
+   }, SAVE_DELAY);
+ }
+ 
++/* Немедленная запись — на выходе со страницы и в переломных
++   точках вроде конца уровня. Ждать здесь нечего: вкладку могут
++   закрыть в любой момент, поэтому пишем локально синхронно, а в
++   облако отправляем с flush. */
++export function flushSave() {
++  clearTimeout(saveTimer);
++  clearTimeout(cloudTimer);
++  if (!lastPayload) return;
++  writeLocal(lastPayload);
++  writeCloud(lastPayload, true);
++}
++
++/* Уход со страницы. visibilitychange ловит сворачивание на
++   мобильных, где pagehide часто не приходит вовсе. */
++if (typeof window !== "undefined") {
++  window.addEventListener("pagehide", flushSave);
++  document.addEventListener("visibilitychange", () => {
++    if (document.visibilityState === "hidden") flushSave();
++  });
++}
++
++/* --- чтение ---
++   Облако приоритетнее: игрок мог продвинуться на другом
++   устройстве. Локальная копия — запасной вариант, когда
++   платформы нет или облако не ответило. */
++
+ export async function readSave() {
++  let raw = null;
++
++  try {
++    const cloud = await cloudGet(SAVE_KEY);
++    if (cloud) raw = cloud;
++  } catch (e) {
++    raw = null;
++  }
++
++  if (!raw) {
++    try {
++      raw = window.localStorage.getItem(SAVE_KEY);
++    } catch (e) {
++      raw = null;
++    }
++  }
++
++  if (!raw) return null;
++
+   try {
+-    if (typeof window === "undefined" || !window.storage) return null;
+-    const res = await window.storage.get(SAVE_KEY);
+-    if (!res || !res.value) return null;
+-    return sanitizeSave(JSON.parse(res.value));
++    const save = sanitizeSave(JSON.parse(raw));
++    // синхронизируем «последнее отправленное», чтобы первый же
++    // writeSave не погнал в облако то, что там уже лежит
++    lastPayload = raw;
++    lastCloudPayload = raw;
++    return save;
+   } catch (e) {
+-    // Битое или отсутствующее сохранение — начинаем с чистого листа,
+-    // это лучше, чем падение на старте.
++    // Битое сохранение — начинаем с чистого листа, это лучше,
++    // чем падение на старте.
+     return null;
+   }
+ }
+ 
+ export async function clearSave() {
++  clearTimeout(saveTimer);
++  clearTimeout(cloudTimer);
++  lastPayload = "";
++  lastCloudPayload = "";
+   try {
+-    if (typeof window !== "undefined" && window.storage) {
+-      await window.storage.delete(SAVE_KEY);
+-    }
+-    lastPayload = "";
+-  } catch (e) {
+-    /* нечего делать */
+-  }
++    window.localStorage.removeItem(SAVE_KEY);
++  } catch (e) {}
++  // В облаке нет удаления ключа — затираем пустым объектом.
++  try {
++    await cloudSet(SAVE_KEY, "", true);
++  } catch (e) {}
+ }
+diff --git a/src/main.jsx b/src/main.jsx
+index ce286a9..31f64ae 100644
+--- a/src/main.jsx
++++ b/src/main.jsx
+@@ -1,5 +1,12 @@
+ import React from "react";
+ import { createRoot } from "react-dom/client";
+ import App from "./App.jsx";
++import { initPlatform } from "./core/platform";
+ 
+-createRoot(document.getElementById("root")).render(<App />);
++/* SDK поднимаем до первого рендера: чтение сохранения в App
++   стартует сразу и должно уже видеть облако. initPlatform не
++   бросает исключений и не висит — если платформы нет, промис
++   сразу резолвится в false. */
++initPlatform().finally(() => {
++  createRoot(document.getElementById("root")).render(<App />);
++});
+diff --git a/vite.config.js b/vite.config.js
+index a526933..3224c8c 100644
+--- a/vite.config.js
++++ b/vite.config.js
+@@ -1,13 +1,32 @@
+ import { defineConfig } from "vite";
+ import react from "@vitejs/plugin-react";
+ 
+-export default defineConfig({
+-  plugins: [react()],
++/* Один код — три среды: браузер Яндекс Игр, APK через Capacitor,
++   локальный dev. Различие ровно одно — тег SDK, поэтому вместо
++   отдельной ветки кода держим плейсхолдер в index.html и
++   подставляем скрипт только в сборке под Яндекс.
++
++   Тащить SDK в APK нельзя: скрипт лежит на домене Яндекса, в
++   приложении он не загрузится и подарит игроку зависшую сотню
++   миллисекунд на старте. */
++const yandexSdk = (isYandex) => ({
++  name: "yandex-sdk-tag",
++  transformIndexHtml(html) {
++    return html.replace(
++      "<!--YANDEX_SDK-->",
++      isYandex ? '<script src="https://yandex.ru/games/sdk/v2"></script>' : ""
++    );
++  },
++});
++
++export default defineConfig(({ mode }) => ({
++  plugins: [react(), yandexSdk(mode === "yandex")],
+   // относительные пути: нужно для Capacitor, иначе в приложении
+-  // ресурсы ищутся от корня файловой системы и не находятся
++  // ресурсы ищутся от корня файловой системы и не находятся.
++  // Яндексу они тоже подходят — игра живёт в своей поддиректории.
+   base: "./",
+   build: {
+-    outDir: "dist",
++    outDir: mode === "yandex" ? "dist-yandex" : "dist",
+     // three.js весит немало, предупреждение о размере тут не по делу
+     chunkSizeWarningLimit: 1500,
+   },
+@@ -15,4 +34,4 @@ export default defineConfig({
+     host: true, // чтобы открывать с телефона в той же сети
+     port: 5173,
+   },
+-});
++}));
