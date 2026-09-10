@@ -245,7 +245,7 @@ export function Board2D({
                   <span
                     style={{
                       position: "absolute", top: 3, right: 6,
-                      fontFamily: "Fredoka, sans-serif", fontWeight: 800, fontSize: 9.5,
+                      fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 800, fontSize: 9.5,
                       color: "rgba(255,255,255,.95)", textShadow: "0 1px 2px rgba(0,0,0,.5)",
                     }}
                   >
