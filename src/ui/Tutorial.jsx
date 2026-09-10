@@ -105,7 +105,7 @@ export function TutorialHint({ step, t, targetRect, onSkip }) {
             border: "none",
             borderRadius: 9,
             color: "#fff",
-            fontFamily: "Fredoka, sans-serif",
+            fontFamily: "Fredoka, Comfortaa, sans-serif",
             fontWeight: 600,
             fontSize: 11.5,
             padding: "6px 10px",
@@ -275,7 +275,7 @@ function MechanicIntro({ mech, t, onClose }) {
         </div>
         <div
           style={{
-            fontFamily: "Fredoka, sans-serif", fontWeight: 700,
+            fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700,
             fontSize: 19, color: UI.deep, marginBottom: 8,
           }}
         >
@@ -387,7 +387,7 @@ export function MechanicCard({ card, t, onClose }) {
         </div>
         <div
           style={{
-            fontFamily: "Fredoka, sans-serif", fontWeight: 700,
+            fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700,
             fontSize: 19, color: UI.deep, marginBottom: 6,
           }}
         >
