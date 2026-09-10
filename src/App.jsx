@@ -501,6 +501,7 @@ export default function SortAndBuild3D() {
 
     setAdLoading(true);
     gameplayStop(); // на время ролика партия считается приостановленной
+    audio.suspendAll();
     let rewarded = false;
     try {
       rewarded = await showRewardedAd();
@@ -508,6 +509,7 @@ export default function SortAndBuild3D() {
       rewarded = true; // сбой SDK трактуем в пользу игрока
     }
     setAdLoading(false);
+    audio.resumeAll();
     gameplayStart();
 
     if (rewarded) reward();
@@ -759,6 +761,18 @@ export default function SortAndBuild3D() {
     else gameplayStop();
   }, [screen, modal]);
 
+  /* Вкладку свернули или перешли на другую — звук замолкает.
+     На площадке игра живёт в общей вкладке браузера, и музыка,
+     доносящаяся из свёрнутой игры, раздражает сильнее всего. */
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden") audio.suspendAll();
+      else audio.resumeAll();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [audio]);
+
   /* Полноэкранная реклама между уровнями.
 
      Ставим её именно здесь, а не на старте игры и не после
@@ -784,7 +798,9 @@ export default function SortAndBuild3D() {
     // выстрелили бы двумя запросами подряд
     lastAdAt.current = now;
     gameplayStop();
+    audio.suspendAll();
     await showFullscreenAd();
+    audio.resumeAll();
     gameplayStart();
   };
 
@@ -860,7 +876,7 @@ export default function SortAndBuild3D() {
         </div>
         <div
           style={{
-            fontFamily: "Fredoka, sans-serif", fontWeight: 700,
+            fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700,
             fontSize: 20, color: UI.deep, letterSpacing: "-0.3px",
           }}
         >
@@ -949,7 +965,7 @@ export default function SortAndBuild3D() {
 
           <div style={{ textAlign: "center", marginTop: 18 }}>
             <div style={{ fontSize: 64, animation: "sb-float 3s ease-in-out infinite" }}>{WORLDS[world].icon}</div>
-            <h1 style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 40, color: UI.deep, margin: "10px 0 6px", letterSpacing: "-0.5px" }}>
+            <h1 style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 40, color: UI.deep, margin: "10px 0 6px", letterSpacing: "-0.5px" }}>
               {t.title}
             </h1>
             <p style={{ fontSize: 14.5, opacity: 0.7, margin: 0 }}>{t.tagline}</p>
@@ -964,13 +980,13 @@ export default function SortAndBuild3D() {
           >
             <div>
               <div style={{ fontSize: 12, opacity: 0.6 }}>{t.worldLabel}</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, color: UI.deep }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, color: UI.deep }}>
                 {WORLDS[world].icon} {wName(world)}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 12, opacity: 0.6 }}>{t.levelLabel}</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, color: UI.deep }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, color: UI.deep }}>
                 {gIdx + 1} <span style={{ fontSize: 13, opacity: 0.6 }}>{t.of} {TOTAL_LEVELS}</span>
               </div>
             </div>
@@ -1003,7 +1019,7 @@ export default function SortAndBuild3D() {
                     borderRadius: 10, padding: "9px 6px",
                     background: view3D === o.on ? UI.accent : "transparent",
                     color: view3D === o.on ? "#fff" : UI.deep,
-                    fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13,
+                    fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     boxShadow: view3D === o.on ? "0 2px 6px rgba(208,112,63,.35)" : "none",
                     transition: "background .15s ease",
@@ -1040,12 +1056,12 @@ export default function SortAndBuild3D() {
               onClick={() => setScreen("menu")}
               style={{
                 background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
-                fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
               ← {t.menu}
             </button>
-            <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 19, color: UI.deep }}>
+            <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 19, color: UI.deep }}>
               🛒 {t.shopTitle}
             </div>
           </div>
@@ -1061,9 +1077,9 @@ export default function SortAndBuild3D() {
           >
             <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <span style={{ fontSize: 22 }}>🎁</span>
-              <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 14 }}>{t.freeCoins}</span>
+              <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 14 }}>{t.freeCoins}</span>
             </span>
-            <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 15 }}>+25 🪙</span>
+            <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 15 }}>+25 🪙</span>
           </button>
 
           {/* жизни */}
@@ -1133,12 +1149,12 @@ export default function SortAndBuild3D() {
               onClick={() => setScreen("menu")}
               style={{
                 background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
-                fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
               ← {t.menu}
             </button>
-            <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 18, color: UI.deep }}>
+            <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 18, color: UI.deep }}>
               {t.chooseWorld}
             </div>
           </div>
@@ -1168,7 +1184,7 @@ export default function SortAndBuild3D() {
                     {open ? w.icon : "🔒"}
                   </span>
                   <span style={{ flex: 1 }}>
-                    <span style={{ display: "block", fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 16.5, color: UI.deep }}>
+                    <span style={{ display: "block", fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 16.5, color: UI.deep }}>
                       {wName(i)}
                     </span>
                     <span style={{ display: "block", fontSize: 12, opacity: 0.65, marginTop: 2 }}>
@@ -1189,7 +1205,7 @@ export default function SortAndBuild3D() {
                         marginTop: 10, width: "100%", cursor: "pointer",
                         background: UI.accent, border: "none", color: "#fff",
                         borderRadius: 12, padding: "10px 12px",
-                        fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13.5,
+                        fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13.5,
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxSizing: "border-box"}}
                     >
                       🔓 {t.buyWorld} — {price}
@@ -1213,12 +1229,12 @@ export default function SortAndBuild3D() {
               onClick={() => setScreen("menu")}
               style={{
                 background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
-                fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
               ← {t.menu}
             </button>
-            <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 19, color: UI.deep }}>
+            <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 19, color: UI.deep }}>
               🖼 {t.gallery}
             </div>
           </div>
@@ -1232,7 +1248,7 @@ export default function SortAndBuild3D() {
             }}
           >
             <span style={{ fontSize: 13, opacity: 0.7 }}>{t.collected}</span>
-            <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 18, color: UI.accent }}>
+            <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 18, color: UI.accent }}>
               {builtCount} / {WORLDS.length}
             </span>
           </div>
@@ -1272,7 +1288,7 @@ export default function SortAndBuild3D() {
                   </span>
                   <span
                     style={{
-                      fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 12.5,
+                      fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 12.5,
                       color: UI.deep, opacity: done ? 1 : 0.5, textAlign: "center", lineHeight: 1.2,
                     }}
                   >
@@ -1321,12 +1337,12 @@ export default function SortAndBuild3D() {
               onClick={() => setScreen("gallery")}
               style={{
                 background: UI.panel, border: "none", borderRadius: 11, padding: "6px 12px",
-                fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
               ← {t.gallery}
             </button>
-            <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 15, color: UI.deep }}>
+            <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 15, color: UI.deep }}>
               {WORLDS[viewWorld].icon} {wName(viewWorld)}
             </div>
             <span style={{ width: 60 }} />
@@ -1356,7 +1372,7 @@ export default function SortAndBuild3D() {
                   onClick={() => camRef.current?.setView(v.theta, v.phi, v.zoom)}
                   style={{
                     border: "none", background: "transparent", cursor: "pointer",
-                    fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 11,
+                    fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 11,
                     color: UI.deep, padding: "4px 7px", borderRadius: 8,
                   }}
                 >
@@ -1415,14 +1431,14 @@ export default function SortAndBuild3D() {
                 /* область нажатия не меньше 44 пикселей — иначе
                    по кнопке трудно попасть пальцем */
                 padding: "11px 14px", minHeight: 40,
-                fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
                 position: "relative", zIndex: 5,
               }}
             >
               ← {t.menu}
             </button>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-              <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep }}>
+              <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep }}>
                 {t.levelLabel} {gIdx + 1}
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1437,7 +1453,7 @@ export default function SortAndBuild3D() {
                     />
                   ))}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: TIER_STYLE[cfg.tier].color, fontFamily: "Fredoka, sans-serif" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: TIER_STYLE[cfg.tier].color, fontFamily: "Fredoka, Comfortaa, sans-serif" }}>
                   {t["tier" + cfg.tier.charAt(0).toUpperCase() + cfg.tier.slice(1)]}
                 </span>
               </span>
@@ -1459,10 +1475,10 @@ export default function SortAndBuild3D() {
                 background: UI.panel, border: "none", borderRadius: 11, padding: "5px 10px",
               }}
             >
-              <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 12.5, color: UI.deep }}>
+              <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 12.5, color: UI.deep }}>
                 {unlimited ? "♾️" : `${lives} ❤️`}
               </span>
-              <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 12.5, color: UI.deep }}>
+              <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 12.5, color: UI.deep }}>
                 {coins} 🪙
               </span>
             </button>
@@ -1474,7 +1490,7 @@ export default function SortAndBuild3D() {
               style={{
                 position: "absolute", top: 9, left: 9,
                 background: "rgba(253,250,243,0.9)", borderRadius: 12, padding: "5px 10px",
-                fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 12.5, color: UI.deep,
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 12.5, color: UI.deep,
               }}
             >
               {stage.icon} {sName(stage)} · {unlocked}/{stages.length}
@@ -1496,7 +1512,7 @@ export default function SortAndBuild3D() {
                   onClick={() => camRef.current?.setView(v.theta, v.phi, v.zoom)}
                   style={{
                     border: "none", background: "transparent", cursor: "pointer",
-                    fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 11,
+                    fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 11,
                     color: UI.deep, padding: "4px 7px", borderRadius: 8,
                   }}
                 >
@@ -1512,7 +1528,7 @@ export default function SortAndBuild3D() {
             </div>
             <span
               style={{
-                fontFamily: "Fredoka, sans-serif", fontSize: 11.5, fontWeight: 700,
+                fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 11.5, fontWeight: 700,
                 color: freeTotal === 0 ? "#d43a2f" : UI.deep, opacity: 0.85,
               }}
             >
@@ -1581,7 +1597,7 @@ export default function SortAndBuild3D() {
             style={{
               background: "transparent", border: `1.5px solid ${UI.deep}33`, color: UI.deep,
               borderRadius: 12, padding: "9px", cursor: "pointer", opacity: 0.85,
-              fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 12.5,
+              fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 12.5,
             }}
           >
             ⏭ {t.skipLevel} · ▶ {t.watchAd}
@@ -1601,7 +1617,7 @@ export default function SortAndBuild3D() {
       {/* ---------- НАСТРОЙКИ ---------- */}
       {settingsOpen && (
         <Overlay>
-          <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, marginBottom: 16, color: UI.deep }}>
+          <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, marginBottom: 16, color: UI.deep }}>
             ⚙ {t.settings}
           </div>
           <Slider label={`🎵 ${t.music}`} value={musicVol} onChange={setMusicVol} />
@@ -1637,7 +1653,7 @@ export default function SortAndBuild3D() {
               borderRadius: 12, padding: "9px", marginBottom: 12,
               color: resetArmed ? "#c4383c" : UI.deep,
               opacity: resetArmed ? 1 : 0.6,
-              fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 12.5,
+              fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 12.5,
             }}
           >
             {resetArmed ? `⚠️ ${t.resetConfirm}` : `🗑 ${t.resetProgress}`}
@@ -1719,7 +1735,7 @@ export default function SortAndBuild3D() {
           style={{
             position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)",
             background: UI.deep, color: UI.panel, padding: "9px 16px", borderRadius: 20,
-            fontFamily: "Fredoka, sans-serif", fontSize: 13, zIndex: 50,
+            fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 13, zIndex: 50,
             animation: "sb-pop .2s ease both", maxWidth: "80%", textAlign: "center",
           }}
         >
@@ -1754,7 +1770,7 @@ export default function SortAndBuild3D() {
           style={{
             position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
             background: UI.deep, color: UI.panel, padding: "8px 16px", borderRadius: 20,
-            fontFamily: "Fredoka, sans-serif", fontSize: 13, zIndex: 50,
+            fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 13, zIndex: 50,
           }}
         >
           {toast}
@@ -1768,7 +1784,7 @@ export default function SortAndBuild3D() {
       {boostChoice && !adLoading && (
         <Overlay>
           <div style={{ fontSize: 40 }}>{boostChoice.icon}</div>
-          <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 19, margin: "6px 0 16px", color: UI.deep }}>
+          <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 19, margin: "6px 0 16px", color: UI.deep }}>
             {boostChoice.label}
           </div>
           <Btn onClick={payWithCoins}>{boostChoice.cost} 🪙</Btn>
@@ -1778,7 +1794,7 @@ export default function SortAndBuild3D() {
             style={{
               background: "transparent", border: `1.5px solid ${UI.accent}`, color: UI.accent,
               borderRadius: 13, padding: "11px 16px", width: "100%", cursor: "pointer",
-              fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 14,
+              fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 14,
             }}
           >
             ▶ {t.watchAd}
@@ -1797,7 +1813,7 @@ export default function SortAndBuild3D() {
           <div
             style={{
               background: UI.panel, borderRadius: 18, padding: "20px 26px",
-              fontFamily: "Fredoka, sans-serif", fontSize: 14, color: UI.deep,
+              fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 14, color: UI.deep,
             }}
           >
             {t.adLoading}
@@ -1810,7 +1826,7 @@ export default function SortAndBuild3D() {
           {modal === "win" && (
             <>
               <div style={{ fontSize: 42 }}>{doneStage.icon}</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
                 {sName(doneStage)} {t.doneTitle}
               </div>
               <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 16 }}>
@@ -1822,7 +1838,7 @@ export default function SortAndBuild3D() {
           {modal === "worldDone" && (
             <>
               <div style={{ fontSize: 42 }}>🏆</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
                 {wName(world)} {t.worldDoneTitle}
               </div>
               <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 16 }}>
@@ -1836,7 +1852,7 @@ export default function SortAndBuild3D() {
           {modal === "allDone" && (
             <>
               <div style={{ fontSize: 42 }}>🎉</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
                 {t.allDoneTitle}
               </div>
               <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 16 }}>{t.allDoneBody}</div>
@@ -1847,7 +1863,7 @@ export default function SortAndBuild3D() {
           {modal === "stuck" && (
             <>
               <div style={{ fontSize: 42 }}>🤔</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
                 {t.stuckTitle}
               </div>
               <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 16 }}>{t.stuckBody}</div>
@@ -1895,7 +1911,7 @@ export default function SortAndBuild3D() {
                 style={{
                   background: "transparent", border: `1.5px solid ${UI.accent}`, color: UI.accent,
                   borderRadius: 13, padding: "11px 16px", width: "100%", cursor: "pointer",
-                  fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 14,
+                  fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 14,
                 }}
               >
                 ↩️ {t.boostUndo}
@@ -1908,12 +1924,12 @@ export default function SortAndBuild3D() {
           {modal === "nolives" && (
             <>
               <div style={{ fontSize: 42 }}>💔</div>
-              <div style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
+              <div style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 20, margin: "6px 0 4px" }}>
                 {t.noLivesTitle}
               </div>
               <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 6 }}>{t.noLivesBody}</div>
               {nextLifeAt && (
-                <div style={{ fontSize: 13, color: UI.accent, fontWeight: 700, marginBottom: 14, fontFamily: "Fredoka, sans-serif" }}>
+                <div style={{ fontSize: 13, color: UI.accent, fontWeight: 700, marginBottom: 14, fontFamily: "Fredoka, Comfortaa, sans-serif" }}>
                   ⏳ {t.nextLife} {fmtTime(nextLifeAt - now)}
                 </div>
               )}
@@ -1942,7 +1958,7 @@ export default function SortAndBuild3D() {
                 style={{
                   background: "transparent", border: `1.5px solid ${UI.accent}`, color: UI.accent,
                   borderRadius: 13, padding: "11px 16px", width: "100%", cursor: "pointer",
-                  fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 14,
+                  fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 14,
                 }}
               >
                 {t.lifeRefill} — 90 🪙
@@ -1977,10 +1993,10 @@ function BoostBtn({ onClick, icon, label, disabled, cost, coins, adWord }) {
       }}
     >
       <span style={{ fontSize: 16 }}>{icon}</span>
-      <span style={{ fontFamily: "Fredoka, sans-serif", fontSize: 10, fontWeight: 600, color: UI.deep }}>
+      <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 10, fontWeight: 600, color: UI.deep }}>
         {label}
       </span>
-      <span style={{ fontFamily: "Fredoka, sans-serif", fontSize: 10.5, fontWeight: 700, color: affordable ? UI.accent : UI.deep, opacity: affordable ? 1 : 0.65 }}>
+      <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 10.5, fontWeight: 700, color: affordable ? UI.accent : UI.deep, opacity: affordable ? 1 : 0.65 }}>
         {/* «▶» намекает, что у платного варианта есть бесплатная альтернатива */}
         {affordable ? `${cost} 🪙 · ▶` : `▶ ${adWord}`}
       </span>
@@ -2002,7 +2018,7 @@ function ResourceBar({ t, lives, coins, unlimited, nextLifeAt, now, onShop }) {
       >
         <span style={{ fontSize: 17 }}>{unlimited ? "♾️" : "❤️"}</span>
         <span style={{ flex: 1 }}>
-          <span style={{ display: "block", fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 15, color: UI.deep, lineHeight: 1.1 }}>
+          <span style={{ display: "block", fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 15, color: UI.deep, lineHeight: 1.1 }}>
             {unlimited ? t.unlimitedOn : lives > REGEN_CAP ? `${lives}` : `${lives}/${REGEN_CAP}`}
           </span>
           {!unlimited && (
@@ -2025,7 +2041,7 @@ function ResourceBar({ t, lives, coins, unlimited, nextLifeAt, now, onShop }) {
         }}
       >
         <span style={{ fontSize: 16 }}>🪙</span>
-        <span style={{ fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 15, color: UI.deep }}>
+        <span style={{ fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 15, color: UI.deep }}>
           {coins}
         </span>
       </div>
@@ -2050,7 +2066,7 @@ function SectionTitle({ children }) {
   return (
     <div
       style={{
-        fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 14,
+        fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 14,
         color: UI.deep, marginTop: 10, marginBottom: -3,
       }}
     >
@@ -2076,14 +2092,14 @@ function ShopRow({ icon, title, sub, price, badge, money, disabled, onClick }) {
     >
       <span style={{ fontSize: 26 }}>{icon}</span>
       <span style={{ flex: 1 }}>
-        <span style={{ display: "block", fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 14.5, color: UI.deep }}>
+        <span style={{ display: "block", fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600, fontSize: 14.5, color: UI.deep }}>
           {title}
         </span>
         {sub && <span style={{ display: "block", fontSize: 11.5, opacity: 0.6, marginTop: 1 }}>{sub}</span>}
       </span>
       <span
         style={{
-          fontFamily: "Fredoka, sans-serif", fontWeight: 700, fontSize: 14,
+          fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 700, fontSize: 14,
           color: money ? "#fff" : UI.deep,
           background: money ? UI.accent : "#00000010",
           borderRadius: 10, padding: "7px 13px", whiteSpace: "nowrap",
@@ -2096,7 +2112,7 @@ function ShopRow({ icon, title, sub, price, badge, money, disabled, onClick }) {
           style={{
             position: "absolute", top: -7, right: 12,
             background: "#3f6244", color: "#fff", borderRadius: 8,
-            fontFamily: "Fredoka, sans-serif", fontSize: 9.5, fontWeight: 700,
+            fontFamily: "Fredoka, Comfortaa, sans-serif", fontSize: 9.5, fontWeight: 700,
             padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.3px",
           }}
         >
@@ -2166,7 +2182,7 @@ function GhostBtn({ onClick, children }) {
       onClick={onClick}
       style={{
         flex: 1, background: "transparent", border: `1.5px solid ${UI.deep}44`, color: UI.deep,
-        borderRadius: 13, padding: "11px 8px", fontFamily: "Fredoka, sans-serif",
+        borderRadius: 13, padding: "11px 8px", fontFamily: "Fredoka, Comfortaa, sans-serif",
         fontWeight: 600, fontSize: 13.5, cursor: "pointer",
       }}
     >
@@ -2194,7 +2210,7 @@ export function Btn({ onClick, children }) {
       onClick={onClick}
       style={{
         background: UI.accent, color: "#fff", border: "none", borderRadius: 13,
-        padding: "13px 16px", fontFamily: "Fredoka, sans-serif", fontWeight: 600,
+        padding: "13px 16px", fontFamily: "Fredoka, Comfortaa, sans-serif", fontWeight: 600,
         fontSize: 15, cursor: "pointer", width: "100%", boxSizing: "border-box"}}
     >
       {children}
