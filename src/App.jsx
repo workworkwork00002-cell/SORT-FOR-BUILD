@@ -7,7 +7,8 @@ import { UI } from "./core/geometry";
 import { createHaptics } from "./core/haptics";
 import { LANGS, detectLang, isRTL, makeT } from "./core/i18n";
 import { levelConfig, worldTiers } from "./core/levels";
-import { catchUpLives, clearSave, readSave, writeSave } from "./core/save";
+import { gameplayStart, gameplayStop, onYandex, platformLang, showFullscreenAd, showRewardedAd, signalReady } from "./core/platform";
+import { catchUpLives, clearSave, flushSave, readSave, writeSave } from "./core/save";
 import { SHELF_SLOTS, acceptsItem, frontOf, generateShelves, hasShelfMoves, openSlots, shelfHint, shelfMatch, shelvesSolved, sizeOf, slotOpen, solveShelves } from "./core/shelves";
 import { MechanicCard, TUTORIAL_STEPS, TutorialHint, firstNewMechanic, tutorialTarget } from "./ui/Tutorial";
 import { Plot } from "./world/Plot";
@@ -171,6 +172,11 @@ export default function SortAndBuild3D() {
         setTutDone(save.tutDone);
         setSeenMechanics(save.seenMechanics);
         if (save.lang) setLang(save.lang);
+        else {
+          // игрок ещё не выбирал язык — берём язык площадки
+          const pl = platformLang();
+          if (pl && LANGS.some((l) => l.code === pl)) setLang(pl);
+        }
 
         // жизни, накопившиеся пока игра была закрыта
         const caught = catchUpLives(save, Date.now());
@@ -184,6 +190,8 @@ export default function SortAndBuild3D() {
         setBoard(generateShelves(c, st.items));
       }
       setLoaded(true);
+      // убираем лоадер платформы: игра готова к взаимодействию
+      signalReady();
     })();
     return () => { alive = false; };
   }, []);
@@ -467,13 +475,39 @@ export default function SortAndBuild3D() {
     });
   };
 
-  /* ---------- бусты ---------- */
-  const showAd = (reward) => {
+  /* ---------- бусты и реклама ----------
+
+     Ролик за награду. Три исхода, и они намеренно разные:
+
+     • Ролик досмотрен — выдаём буст.
+     • Игрок закрыл ролик сам — не выдаём. Иначе за неделю все
+       поймут, что можно закрыть на первой секунде, и награда за
+       рекламу перестанет приносить деньги.
+     • Рекламы нет вообще (сборка вне Яндекса, нет подходящего
+       объявления, сбой сети) — выдаём. Игрок не виноват в том,
+       что показывать нечего, и упираться в стену он не должен. */
+  const showAd = async (reward) => {
+    if (!onYandex()) {
+      // вне платформы рекламы не существует: короткая пауза,
+      // чтобы выдача не выглядела мгновенной, и награда
+      setAdLoading(true);
+      setTimeout(() => { setAdLoading(false); reward(); }, 800);
+      return;
+    }
+
     setAdLoading(true);
-    setTimeout(() => {
-      setAdLoading(false);
-      reward();
-    }, 1500);
+    gameplayStop(); // на время ролика партия считается приостановленной
+    let rewarded = false;
+    try {
+      rewarded = await showRewardedAd();
+    } catch (e) {
+      rewarded = true; // сбой SDK трактуем в пользу игрока
+    }
+    setAdLoading(false);
+    gameplayStart();
+
+    if (rewarded) reward();
+    else setToast(t.adUnavailable);
   };
 
   const payOrAd = (cost, reward) => {
@@ -686,11 +720,60 @@ export default function SortAndBuild3D() {
     if (freeNow <= 2 && !solveShelves(board, 12000)) setModal("stuck");
   }, [board, modal, screen, unlocked, stages.length, world, gIdx, audio, haptic]);
 
+  /* Переломные точки прогресса сбрасываем в облако немедленно.
+     Обычная запись отложена на секунды, а игрок вполне может
+     закрыть вкладку сразу после победного экрана — и потерять
+     как раз тот уровень, ради которого играл.
+
+     Эффект объявлен ниже эффекта записи, поэтому к моменту
+     вызова flushSave актуальное состояние уже подготовлено. */
+  useEffect(() => {
+    if (modal === "win" || modal === "worldDone" || modal === "allDone") flushSave();
+  }, [modal]);
+
+  /* Платформе важно знать, идёт ли партия прямо сейчас: пока
+     GameplayAPI в состоянии start, Яндекс не показывает свою
+     рекламу поверх игры. Меню и модалки такой защиты не требуют. */
+  useEffect(() => {
+    if (screen === "game" && !modal) gameplayStart();
+    else gameplayStop();
+  }, [screen, modal]);
+
+  /* Полноэкранная реклама между уровнями.
+
+     Ставим её именно здесь, а не на старте игры и не после
+     проигрыша: игрок только что выиграл, он в хорошем настроении
+     и не ждёт немедленного продолжения — это самое безобидное
+     место для паузы.
+
+     Свой счётчик держим по трём причинам: платформа отказывает
+     чаще чем раз в три минуты (получили бы просто ошибку),
+     первые уровни трогать нельзя вообще — человек ещё решает,
+     останется ли он в игре, — и после долгой партии реклама
+     раздражает меньше, чем после сорокасекундной. */
+  const AD_INTERVAL = 4 * 60 * 1000;
+  const AD_FROM_LEVEL = 6; // до этого уровня не показываем ничего
+  const lastAdAt = useRef(0);
+
+  const maybeInterstitial = async () => {
+    if (!onYandex()) return;
+    if (gIdx < AD_FROM_LEVEL) return;
+    const now = Date.now();
+    if (now - lastAdAt.current < AD_INTERVAL) return;
+    // отметку ставим до показа: иначе два быстрых нажатия
+    // выстрелили бы двумя запросами подряд
+    lastAdAt.current = now;
+    gameplayStop();
+    await showFullscreenAd();
+    gameplayStart();
+  };
+
   const nextLevel = () => {
     const lvl = level + 1;
     setLevel(lvl);
     restart(world, lvl);
     setModal(null);
+    maybeInterstitial();
   };
 
   const doneStage = stages[Math.min(Math.max(unlocked - 1, 0), stages.length - 1)];
@@ -906,11 +989,11 @@ export default function SortAndBuild3D() {
             nextLifeAt={nextLifeAt} now={now}
           />
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "7px 13px",
+                background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
@@ -999,11 +1082,11 @@ export default function SortAndBuild3D() {
       {/* ---------- ВЫБОР МИРА ---------- */}
       {screen === "worlds" && (
         <div style={{ width: "100%", maxWidth: 460, padding: "20px 16px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "7px 13px",
+                background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
@@ -1079,11 +1162,11 @@ export default function SortAndBuild3D() {
       {/* ---------- ГАЛЕРЕЯ СОБРАННЫХ МИРОВ ---------- */}
       {screen === "gallery" && (
         <div style={{ width: "100%", maxWidth: 460, padding: "18px 16px 26px", display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box"}}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, minHeight: 40 }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "7px 13px",
+                background: UI.panel, border: "none", borderRadius: 11, padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
               }}
             >
@@ -1269,12 +1352,25 @@ export default function SortAndBuild3D() {
       {/* ---------- ИГРА ---------- */}
       {screen === "game" && (
         <div style={{ width: "100%", maxWidth: 460, padding: "12px 12px 20px", display: "flex", flexDirection: "column", gap: 9, boxSizing: "border-box"}}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Шапка отодвинута от верхнего края.
+
+             Отступ safe-area даёт только высоту безопасной зоны, но не
+             говорит, где вырез по горизонтали: на Pixel он по центру,
+             на разных iPhone — по центру или слева. Угадывать место
+             ненадёжно, поэтому просто уводим всю шапку ниже выреза. */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginTop: 10, minHeight: 40,
+          }}>
             <button
               onClick={() => setScreen("menu")}
               style={{
-                background: UI.panel, border: "none", borderRadius: 11, padding: "6px 12px",
+                background: UI.panel, border: "none", borderRadius: 11,
+                /* область нажатия не меньше 44 пикселей — иначе
+                   по кнопке трудно попасть пальцем */
+                padding: "11px 14px", minHeight: 40,
                 fontFamily: "Fredoka, sans-serif", fontWeight: 600, fontSize: 13, color: UI.deep, cursor: "pointer",
+                position: "relative", zIndex: 5,
               }}
             >
               ← {t.menu}
