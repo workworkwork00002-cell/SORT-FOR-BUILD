@@ -14,6 +14,44 @@ let ysdk = null;      // объект SDK, если платформа дост�
 let player = null;    // объект игрока, если удалось инициализировать
 let initPromise = null;
 
+/* Страховка от «молчащего» SDK.
+
+   SDK общается с площадкой через postMessage в родительский
+   фрейм. Если игру открыли не внутри Яндекс Игр — по прямой
+   ссылке, локально, в чужом фрейме — сообщения уходить некуда,
+   и обещанные колбэки не приходят НИКОГДА. Без таймаута игрок
+   получает вечную крутилку «реклама загружается».
+
+   Поэтому каждый вызов к SDK ограничен по времени: не ответил
+   вовремя — считаем, что не ответил вообще. */
+function withTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      resolve(v);
+    };
+    const timer = setTimeout(() => finish(fallback), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); finish(v); },
+      () => { clearTimeout(timer); finish(fallback); }
+    );
+  });
+}
+
+/* Быстрые запросы к SDK: чтение и запись данных, проверки
+   доступности. Они обязаны отвечать сразу; если молчат — SDK
+   недоступен. */
+const T_FAST = 6000;
+
+/* Реклама: сторожим ТОЛЬКО окно до открытия ролика. Как только
+   придёт onOpen, сторож снимается, и дальше ролик может идти
+   сколько угодно — хоть минуту с финальной карточкой. Обрывать
+   его по времени нельзя: игрок досмотрит до конца и не получит
+   награду, а это хуже любой зависшей крутилки. */
+const T_AD_START = 8000;
+
 /* Игра запущена внутри Яндекс Игр? */
 export const onYandex = () => ysdk !== null;
 
@@ -30,17 +68,17 @@ export function initPlatform() {
     if (typeof window === "undefined" || !window.YaGames) return false;
 
     try {
-      ysdk = await window.YaGames.init();
+      ysdk = await withTimeout(window.YaGames.init(), T_FAST, null);
     } catch (e) {
       ysdk = null;
-      return false;
     }
+    if (!ysdk) return false;
 
     // Player инициализируем отдельно: он может не подняться
     // (игрок запретил доступ к данным, сетевой сбой), и это не
     // повод отказываться от рекламы и остального SDK.
     try {
-      player = await ysdk.getPlayer({ scopes: false });
+      player = await withTimeout(ysdk.getPlayer({ scopes: false }), T_FAST, null);
     } catch (e) {
       player = null;
     }
@@ -82,7 +120,8 @@ export function gameplayStop() {
 export async function cloudGet(key) {
   if (!player) return null;
   try {
-    const data = await player.getData([key]);
+    const data = await withTimeout(player.getData([key]), T_FAST, null);
+    if (!data) return null;
     return data && typeof data[key] === "string" ? data[key] : null;
   } catch (e) {
     return null;
@@ -94,8 +133,8 @@ export async function cloudGet(key) {
 export async function cloudSet(key, value, flush = false) {
   if (!player) return false;
   try {
-    await player.setData({ [key]: value }, flush);
-    return true;
+    const ok = await withTimeout(player.setData({ [key]: value }, flush).then(() => true), T_FAST, false);
+    return ok;
   } catch (e) {
     return false;
   }
@@ -116,11 +155,16 @@ export function showFullscreenAd() {
     const finish = (shown) => {
       if (done) return;
       done = true;
+      clearTimeout(guard);
       resolve(shown);
     };
+    // если колбэки не придут — выходим сами
+    // сторож только до старта ролика
+    const guard = setTimeout(() => finish(false), T_AD_START);
     try {
       ysdk.adv.showFullscreenAdv({
         callbacks: {
+          onOpen: () => clearTimeout(guard),
           onClose: (wasShown) => finish(!!wasShown),
           onError: () => finish(false),
         },
@@ -144,11 +188,15 @@ export function showRewardedAd() {
     const finish = () => {
       if (done) return;
       done = true;
+      clearTimeout(guard);
       resolve(rewarded);
     };
+    const guard = setTimeout(finish, T_AD_START);
     try {
       ysdk.adv.showRewardedVideo({
         callbacks: {
+          // ролик пошёл — снимаем ограничение по времени
+          onOpen: () => clearTimeout(guard),
           onRewarded: () => { rewarded = true; },
           onClose: finish,
           onError: finish,
@@ -169,7 +217,7 @@ export function showRewardedAd() {
 export async function canAddShortcut() {
   if (!ysdk?.shortcut?.canShowPrompt) return false;
   try {
-    const res = await ysdk.shortcut.canShowPrompt();
+    const res = await withTimeout(ysdk.shortcut.canShowPrompt(), T_FAST, null);
     return !!res?.canShow;
   } catch (e) {
     return false;
@@ -180,6 +228,7 @@ export async function canAddShortcut() {
 export async function addShortcut() {
   if (!ysdk?.shortcut?.showPrompt) return false;
   try {
+    // окно закрывает сам игрок — по времени не обрываем
     const res = await ysdk.shortcut.showPrompt();
     return res?.outcome === "accepted";
   } catch (e) {
@@ -195,7 +244,7 @@ export async function addShortcut() {
 export async function canReview() {
   if (!ysdk?.feedback?.canReview) return false;
   try {
-    const res = await ysdk.feedback.canReview();
+    const res = await withTimeout(ysdk.feedback.canReview(), T_FAST, null);
     return !!res?.value;
   } catch (e) {
     return false;
@@ -205,6 +254,7 @@ export async function canReview() {
 export async function requestReview() {
   if (!ysdk?.feedback?.requestReview) return false;
   try {
+    // окно закрывает сам игрок — по времени не обрываем
     const res = await ysdk.feedback.requestReview();
     return !!res?.feedbackSent;
   } catch (e) {
