@@ -160,6 +160,58 @@ export function showRewardedAd() {
   });
 }
 
+/* --- ярлык на рабочий стол ---
+   Игрок, поставивший ярлык, возвращается заметно чаще: игра
+   перестаёт быть случайной вкладкой и становится иконкой рядом
+   с остальными. Спрашивать можно не всегда — доступность зависит
+   от устройства и браузера, поэтому сначала проверка. */
+
+export async function canAddShortcut() {
+  if (!ysdk?.shortcut?.canShowPrompt) return false;
+  try {
+    const res = await ysdk.shortcut.canShowPrompt();
+    return !!res?.canShow;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* true — игрок согласился и ярлык создан. */
+export async function addShortcut() {
+  if (!ysdk?.shortcut?.showPrompt) return false;
+  try {
+    const res = await ysdk.shortcut.showPrompt();
+    return res?.outcome === "accepted";
+  } catch (e) {
+    return false;
+  }
+}
+
+/* --- оценка игры ---
+   Просить можно один раз за сессию и только у авторизованного
+   игрока, который ещё не оценивал. Платформа сама это отслеживает,
+   наше дело — спросить у неё перед показом. */
+
+export async function canReview() {
+  if (!ysdk?.feedback?.canReview) return false;
+  try {
+    const res = await ysdk.feedback.canReview();
+    return !!res?.value;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function requestReview() {
+  if (!ysdk?.feedback?.requestReview) return false;
+  try {
+    const res = await ysdk.feedback.requestReview();
+    return !!res?.feedbackSent;
+  } catch (e) {
+    return false;
+  }
+}
+
 /* --- язык площадки ---
    Яндекс сообщает язык интерфейса пользователя. Используем его
    как стартовое значение, если игрок ещё не выбирал язык сам. */
