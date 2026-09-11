@@ -7,7 +7,7 @@ import { UI } from "./core/geometry";
 import { createHaptics } from "./core/haptics";
 import { LANGS, detectLang, isRTL, makeT } from "./core/i18n";
 import { levelConfig, worldTiers } from "./core/levels";
-import { gameplayStart, gameplayStop, onYandex, platformLang, showFullscreenAd, showRewardedAd, signalReady } from "./core/platform";
+import { addShortcut, canAddShortcut, canReview, gameplayStart, gameplayStop, onYandex, platformLang, requestReview, showFullscreenAd, showRewardedAd, signalReady } from "./core/platform";
 import { catchUpLives, clearSave, flushSave, readSave, writeSave } from "./core/save";
 import { SHELF_SLOTS, acceptsItem, frontOf, generateShelves, hasShelfMoves, openSlots, shelfHint, shelfMatch, shelvesSolved, sizeOf, slotOpen, solveShelves } from "./core/shelves";
 import { MechanicCard, TUTORIAL_STEPS, TutorialHint, firstNewMechanic, tutorialTarget } from "./ui/Tutorial";
@@ -121,6 +121,11 @@ export default function SortAndBuild3D() {
      Держим здесь, а не в общем modal, чтобы не мешаться с игровыми
      окнами вроде «уровень пройден». */
   const [boostChoice, setBoostChoice] = useState(null);
+  /* Ярлык и оценка: показываем кнопки только если платформа
+     подтвердила, что спрашивать сейчас можно. Иначе игрок нажмёт
+     и не произойдёт ничего — хуже, чем если бы кнопки не было. */
+  const [canShortcut, setCanShortcut] = useState(false);
+  const [canRate, setCanRate] = useState(false);
   const [toast, setToast] = useState(null);
   const [hint, setHint] = useState(null);
 
@@ -764,6 +769,29 @@ export default function SortAndBuild3D() {
   /* Вкладку свернули или перешли на другую — звук замолкает.
      На площадке игра живёт в общей вкладке браузера, и музыка,
      доносящаяся из свёрнутой игры, раздражает сильнее всего. */
+  /* Спрашиваем платформу один раз при запуске. Оба ответа могут
+     измениться за сессию (игрок поставил ярлык, игрок оценил),
+     поэтому после успеха кнопку убираем вручную. */
+  useEffect(() => {
+    if (!onYandex()) return;
+    canAddShortcut().then(setCanShortcut);
+    canReview().then(setCanRate);
+  }, []);
+
+  const onAddShortcut = async () => {
+    const ok = await addShortcut();
+    setCanShortcut(false); // второй раз не спрашиваем в любом случае
+    if (ok) {
+      setCoins((c) => c + 50);
+      setToast("+50 🪙");
+    }
+  };
+
+  const onRate = async () => {
+    setCanRate(false); // просить можно только раз за сессию
+    await requestReview();
+  };
+
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "hidden") audio.suspendAll();
@@ -1846,6 +1874,22 @@ export default function SortAndBuild3D() {
                 {wName(Math.min(world + 1, WORLDS.length - 1))}
               </div>
               <Btn onClick={() => enterWorld(world + 1)}>{t.nextWorld}</Btn>
+              {/* Момент выбран намеренно: игрок только что закрыл целый
+                  мир, это лучшая точка, чтобы о чём-то просить. Ярлык
+                  предлагаем первым — он приносит возвраты, а оценка
+                  лишь репутацию в каталоге. */}
+              {canShortcut && (
+                <>
+                  <div style={{ height: 8 }} />
+                  <TextBtn onClick={onAddShortcut}>{t.addShortcut}</TextBtn>
+                </>
+              )}
+              {!canShortcut && canRate && (
+                <>
+                  <div style={{ height: 8 }} />
+                  <TextBtn onClick={onRate}>{t.rateGame}</TextBtn>
+                </>
+              )}
               <TextBtn onClick={() => setModal(null)}>{t.lookAround}</TextBtn>
             </>
           )}
