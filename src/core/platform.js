@@ -208,6 +208,48 @@ export function showRewardedAd() {
   });
 }
 
+/* --- липкий баннер ---
+   Рисует его сама площадка поверх игры, нам остаётся только
+   попросить показ. Настраивается в Консоли: Черновик -> Sticky
+   баннеры, там же выбирается положение и показ на десктопе.
+
+   Сначала спрашиваем статус: если баннер уже висит, повторный
+   вызов лишний, а если не подключён — площадка честно скажет
+   ADV_IS_NOT_CONNECTED, и дёргать её снова незачем. */
+export async function showStickyBanner() {
+  if (!ysdk?.adv?.getBannerAdvStatus) return false;
+  try {
+    const st = await withTimeout(ysdk.adv.getBannerAdvStatus(), T_FAST, null);
+    if (!st) return false;
+    if (st.stickyAdvIsShowing) return true;
+    if (st.reason) return false;      // баннеры не подключены или сбой
+    const res = await withTimeout(ysdk.adv.showBannerAdv(), T_FAST, null);
+    return !!res?.stickyAdvIsShowing;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* --- пауза по команде площадки ---
+   Яндекс сам сообщает, что игру нужно остановить: показывается
+   реклама, открыто окно покупок, свернули вкладку. Требование
+   модерации, пункты 1.3 и 4.7. Возвращаем функцию отписки. */
+export function onPlatformPause(pause, resume) {
+  if (!ysdk?.on) return () => {};
+  try {
+    ysdk.on("game_api_pause", pause);
+    ysdk.on("game_api_resume", resume);
+    return () => {
+      try {
+        ysdk.off("game_api_pause", pause);
+        ysdk.off("game_api_resume", resume);
+      } catch (e) {}
+    };
+  } catch (e) {
+    return () => {};
+  }
+}
+
 /* --- ярлык на рабочий стол ---
    Игрок, поставивший ярлык, возвращается заметно чаще: игра
    перестаёт быть случайной вкладкой и становится иконкой рядом
