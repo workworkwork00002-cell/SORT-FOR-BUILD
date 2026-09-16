@@ -7,7 +7,7 @@ import { UI } from "./core/geometry";
 import { createHaptics } from "./core/haptics";
 import { LANGS, detectLang, isRTL, makeT } from "./core/i18n";
 import { levelConfig, worldTiers } from "./core/levels";
-import { addShortcut, canAddShortcut, canReview, gameplayStart, gameplayStop, onYandex, platformLang, requestReview, showFullscreenAd, showRewardedAd, signalReady } from "./core/platform";
+import { addShortcut, canAddShortcut, canReview, gameplayStart, gameplayStop, onPlatformPause, onYandex, platformLang, requestReview, showFullscreenAd, showRewardedAd, showStickyBanner, signalReady } from "./core/platform";
 import { catchUpLives, clearSave, flushSave, readSave, writeSave } from "./core/save";
 import { SHELF_SLOTS, acceptsItem, frontOf, generateShelves, hasShelfMoves, openSlots, shelfHint, shelfMatch, shelvesSolved, sizeOf, slotOpen, solveShelves } from "./core/shelves";
 import { MechanicCard, TUTORIAL_STEPS, TutorialHint, firstNewMechanic, tutorialTarget } from "./ui/Tutorial";
@@ -124,6 +124,7 @@ export default function SortAndBuild3D() {
   /* Ярлык и оценка: показываем кнопки только если платформа
      подтвердила, что спрашивать сейчас можно. Иначе игрок нажмёт
      и не произойдёт ничего — хуже, чем если бы кнопки не было. */
+  const screenRef = useRef("menu");
   const [canShortcut, setCanShortcut] = useState(false);
   const [canRate, setCanRate] = useState(false);
   const [toast, setToast] = useState(null);
@@ -762,6 +763,7 @@ export default function SortAndBuild3D() {
      GameplayAPI в состоянии start, Яндекс не показывает свою
      рекламу поверх игры. Меню и модалки такой защиты не требуют. */
   useEffect(() => {
+    screenRef.current = screen;
     if (screen === "game" && !modal) gameplayStart();
     else gameplayStop();
   }, [screen, modal]);
@@ -776,7 +778,19 @@ export default function SortAndBuild3D() {
     if (!onYandex()) return;
     canAddShortcut().then(setCanShortcut);
     canReview().then(setCanRate);
+    showStickyBanner();
   }, []);
+
+  /* Площадка сама сообщает, когда игру надо остановить: пошла
+     реклама, открылось окно покупок, свернули вкладку. Требование
+     модерации, и заодно снимает с нас часть работы — своя
+     обработка visibilitychange остаётся для случаев вне Яндекса. */
+  useEffect(() => {
+    return onPlatformPause(
+      () => { gameplayStop(); audio.suspendAll(); },
+      () => { audio.resumeAll(); if (screenRef.current === "game") gameplayStart(); }
+    );
+  }, [audio]);
 
   const onAddShortcut = async () => {
     const ok = await addShortcut();
@@ -1644,14 +1658,10 @@ export default function SortAndBuild3D() {
             ⏭ {t.skipLevel} · ▶ {t.watchAd}
           </button>
 
-          <div
-            style={{
-              border: "1.5px dashed rgba(63,98,68,.35)", borderRadius: 12, padding: "8px",
-              textAlign: "center", fontSize: 11, color: UI.deep, opacity: 0.5,
-            }}
-          >
-            {t.adBanner}
-          </div>
+          {/* Здесь раньше стояла пунктирная заглушка под баннер.
+              Настоящий sticky-баннер рисует сама площадка поверх
+              игры, а не мы внутри неё, поэтому своё место под него
+              отводить не нужно — достаточно попросить показ. */}
         </div>
       )}
 
