@@ -155,8 +155,22 @@ function settleShelves(st) {
 }
 
 export function solveShelves(shelves, maxNodes = 30000) {
+  /* Клонируем ВСЕ поля, от которых зависят правила.
+
+     Раньше копировались только front, queue и locked — и солвер
+     терял `only` (полка принимает лишь свой материал) и `frozen`
+     (запертые ячейки). Он решал облегчённую доску и отвечал
+     «решаемо» там, где в игре расклад тупиковый.
+
+     Правило простое: всё, что читают acceptsItem, slotOpen и
+     canPlace, обязано пережить клонирование. */
   const clone = (st) =>
-    st.map((s) => ({ front: [...s.front], queue: [...s.queue], locked: s.locked }));
+    st.map((s) => ({
+      ...s,
+      front: [...s.front],
+      queue: [...s.queue],
+      frozen: s.frozen ? { ...s.frozen } : s.frozen,
+    }));
 
   const start = clone(shelves);
   settleShelves(start);
@@ -222,14 +236,23 @@ export function solveShelves(shelves, maxNodes = 30000) {
 
 /* Подсказка: первый верный ход. Ищем неглубоко, этого хватает. */
 export function shelfHint(shelves) {
+  // клон обязан нести все поля правил — см. пояснение в solveShelves
   const clone = (st) =>
-    st.map((s) => ({ front: [...s.front], queue: [...s.queue], locked: s.locked }));
+    st.map((s) => ({
+      ...s,
+      front: [...s.front],
+      queue: [...s.queue],
+      frozen: s.frozen ? { ...s.frozen } : s.frozen,
+    }));
   for (let a = 0; a < shelves.length; a++) {
     if (shelves[a].locked) continue;
     for (let i = 0; i < SHELF_SLOTS; i++) {
       if (!shelves[a].front[i]) continue;
       for (let b = 0; b < shelves.length; b++) {
-        if (a === b || !canPlace(shelves[b])) continue;
+        /* canPlace без предмета пропускала привередливую полку:
+           acceptsItem при отсутствующем предмете отвечает «да».
+           Подсказка из-за этого предлагала невозможные ходы. */
+        if (a === b || !canPlace(shelves[b], shelves[a].front[i])) continue;
         const ns = clone(shelves);
         const j = ns[b].front.findIndex((x, k) => slotOpen(ns[b], k));
         ns[b].front[j] = ns[a].front[i];
