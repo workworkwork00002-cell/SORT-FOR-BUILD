@@ -49,6 +49,17 @@ export function createAudio() {
       const c = ensure();
       if (c && c.state === "suspended") c.resume();
     },
+    /* Глушим всё разом: на время рекламного ролика и когда вкладку
+       свернули. Останавливать сам аудиоконтекст надёжнее, чем
+       крутить громкость — иначе поверх чужого ролика продолжает
+       звенеть наша музыка, а это первое, за что площадка снимает
+       игру с модерации. */
+    suspendAll() {
+      if (ctx && ctx.state === "running") ctx.suspend();
+    },
+    resumeAll() {
+      if (ctx && ctx.state === "suspended") ctx.resume();
+    },
     startMusic() {
       const c = ensure();
       if (!c || loopId) return;
